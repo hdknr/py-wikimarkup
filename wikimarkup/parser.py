@@ -330,7 +330,8 @@ _nonWordSpaceDashPat = re.compile(ur'[^\w\s\-\./]', re.UNICODE)
 _multiSpacePat = re.compile(ur'[\s\-_\./]+', re.UNICODE)
 _spacePat = re.compile(ur' ', re.UNICODE)
 _linkPat = re.compile(ur'^(?:([A-Za-z0-9]+):)?([^\|]+)(?:\|([^\n]+?))?\]\](.*)$', re.UNICODE | re.DOTALL)
-_bracketedLinkPat = re.compile(ur'(?:\[((?:mailto:|irc://|https?://|ftp://|/)[^<>\]\[' + u"\x00-\x20\x7f" + ur']*)\s*(.*?)\])', re.UNICODE)
+#_bracketedLinkPat = re.compile(ur'(?:\[((?:mailto:|irc://|https?://|ftp://|/)[^<>\]\[' + u"\x00-\x20\x7f" + ur']*)\s*(.*?)\])', re.UNICODE)
+_bracketedLinkPat = re.compile(ur'(?:\[((?:mailto:|irc://|https?://|ftp://|/|[^:]+:)[^<>\]\[' + u"\x00-\x20\x7f" + ur']*)\s*(.*?)\])', re.UNICODE)
 _protocolPat = re.compile(ur'(\b(?:mailto:|irc://|https?://|ftp://))', re.UNICODE)
 _specialUrlPat = re.compile(ur'^([^<>\]\[' + u"\x00-\x20\x7f" + ur']+)(.*)$', re.UNICODE)
 _protocolsPat = re.compile(ur'^(mailto:|irc://|https?://|ftp://)$', re.UNICODE)
@@ -436,6 +437,11 @@ class BaseParser(object):
         self.env = env
         self.keep_env = (env != {})
         
+        self.anchor_handler= self.default_anchor_handler #HDKNR
+        
+    def default_anchor_handler(self,bits):
+        return bits
+
     def __del__(self):
         if not self.keep_env:
             global env
@@ -1056,13 +1062,14 @@ class BaseParser(object):
                 i += 1
             else:
                 sb.append(u'<a href="')
-                sb.append(bits[i])
+                anchor = self.anchor_handler(bits[i:i+2] )
+                sb.append( anchor[0]  )
                 sb.append(u'">')
-                if not bits[i+1]:
+                if not anchor[1]: 
                     num_links += 1
-                    sb.append(to_unicode(truncate_url(bits[i])))
+                    sb.append(to_unicode(truncate_url(anchor[1])))
                 else:
-                    sb.append(bits[i+1])
+                    sb.append(anchor[1])
                 sb.append(u'</a>')
                 i += 2
         return ''.join(sb)
@@ -1601,10 +1608,13 @@ class BaseParser(object):
         return ''.join(output)
         
 class Parser(BaseParser):
+
     def __init__(self, show_toc=True, base_url=None):
         super(Parser, self).__init__()
         self.show_toc = show_toc
         self.base_url = base_url
+        self.braceSubstitution = None       #HDKNR
+        self.argSubstitution = None         #HDKNR
 
     def parse(self, text):
         utf8 = isinstance(text, str)
@@ -1617,8 +1627,8 @@ class Parser(BaseParser):
 
         text = self.strip(text)
         text = self.removeHtmlTags(text)
-        if self.base_url:
-            text = self.replaceVariables(text)
+#        if self.base_url:                          #HDKNR
+#            text = self.replaceVariables(text)     #HDKNR
         text = self.doTableStuff(text)
         text = self.parseHorizontalRule(text)
         text = self.checkTOC(text)
@@ -1654,6 +1664,7 @@ class Parser(BaseParser):
         Replace magic variables, templates, and template arguments
         with the appropriate text. Templates are substituted recursively,
         taking care to avoid infinite loops.
+        
         """
 
         # Prevent too big inclusions
@@ -1682,9 +1693,9 @@ class Parser(BaseParser):
                 'max': 2
             }
         }
-        text = replace_callback(text, callbacks)
-        mArgStack.pop()
-    
+        text = self.replace_callback(text, callbacks)
+        mArgStack.pop()                 # HDKNR : I'm not quite sure what this is.
+   
         return text
 
     def replace_callback(self, text, callbacks):
@@ -1692,6 +1703,7 @@ class Parser(BaseParser):
         parse any parentheses in format ((title|part|part))
         and call callbacks to get a replacement text for any found piece
         """
+        
         openingBraceStack = []      # this array will hold a stack of parentheses which are not closed yet
         lastOpeningBrace = -1       # last not closed parentheses
 
