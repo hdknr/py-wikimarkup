@@ -437,10 +437,24 @@ class BaseParser(object):
         self.env = env
         self.keep_env = (env != {})
         
-        self.anchor_handler= self.default_anchor_handler #HDKNR
+        self.bracket_handler= self.default_bracket_handler #HDKNR
         
-    def default_anchor_handler(self,bits):
-        return bits
+    def default_bracket_handler(self,bits):
+        """
+        by HDKNR
+        """
+        print "@@@@@@",bits
+        if not bits[1]:
+            val = to_unicode(truncate_url(bits[0]))
+        else:
+            val = bits[1]
+        return [ 
+                u'<a href="',
+                bits[0],
+                u'">',
+                val,
+                u'</a>',
+                ]
 
     def __del__(self):
         if not self.keep_env:
@@ -1054,23 +1068,14 @@ class BaseParser(object):
         bits = _bracketedLinkPat.split(text)
         l = len(bits)
         i = 0
-        num_links = 0
+        num_links = 0   # HDKNR : I don't know what this is for.
         while i < l:
             if i%3 == 0:
                 #sb.append(self.replaceFreeExternalLinks(bits[i]))
                 sb.append(bits[i])
                 i += 1
             else:
-                sb.append(u'<a href="')
-                anchor = self.anchor_handler(bits[i:i+2] )
-                sb.append( anchor[0]  )
-                sb.append(u'">')
-                if not anchor[1]: 
-                    num_links += 1
-                    sb.append(to_unicode(truncate_url(anchor[1])))
-                else:
-                    sb.append(anchor[1])
-                sb.append(u'</a>')
+                sb = sb +  self.bracket_handler(bits[i:i+2] )
                 i += 2
         return ''.join(sb)
 
